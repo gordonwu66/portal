@@ -2,7 +2,7 @@
  * CodeMirror 6 extension for Obsidian-style wiki links ([[note_name]]).
  * - Decorates resolved wiki links as clickable styled links
  * - Unresolved links get a dimmed style
- * - Clicking/Cmd-clicking a resolved link calls onNavigate
+ * - Cmd/Ctrl-clicking a resolved link calls onNavigate
  */
 import {
   EditorView,
@@ -118,10 +118,13 @@ export const wikiLinksPlugin = ViewPlugin.fromClass(
 
 export const wikiLinksClickHandler = EditorView.domEventHandlers({
   click(event, view) {
-    const target = event.target as HTMLElement;
-    if (!target.classList.contains('cm-wiki-link-resolved')) return false;
+    if (!event.metaKey && !event.ctrlKey) return false;
 
-    const pos = view.posAtDOM(target);
+    const target = event.target as HTMLElement;
+    const linkEl = target.closest('.cm-wiki-link-resolved') as HTMLElement | null;
+    if (!linkEl) return false;
+
+    const pos = view.posAtDOM(linkEl);
     const line = view.state.doc.lineAt(pos);
     WIKI_LINK_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
@@ -153,6 +156,15 @@ export const wikiLinksBaseTheme = EditorView.baseTheme({
     textDecoration: 'underline',
     textUnderlineOffset: '2px',
     cursor: 'pointer',
+  },
+  '&.cm-focused .cm-wiki-link-resolved:hover': {
+    opacity: '0.8',
+  },
+  '&.cm-focused .cm-wiki-link-resolved:active': {
+    opacity: '0.65',
+  },
+  '&.cm-focused .cm-wiki-link-resolved': {
+    transition: 'opacity 120ms ease',
   },
 });
 
