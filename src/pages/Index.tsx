@@ -26,7 +26,9 @@ import {
 } from '../components/ui/dropdown-menu';
 import {
   FilePlus,
+  FolderPlus,
   Search,
+  X,
   Trash2,
   MoreHorizontal,
   FileText,
@@ -84,7 +86,9 @@ export default function Index() {
   const [activeNote, setActiveNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [unsaved, setUnsaved] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [, setTick] = useState(0);
@@ -222,11 +226,8 @@ export default function Index() {
           <ResizablePanel defaultSize={22} minSize={8} maxSize={50} className="overflow-hidden">
             <div className="h-full flex flex-col overflow-hidden bg-neutral-50/80 dark:bg-neutral-900/70">
 
-              {/* Header */}
-              <div className="px-4 pt-4 pb-3 flex items-center justify-between">
-                <h1 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 tracking-tight">
-                  Notes
-                </h1>
+              {/* Toolbar */}
+              <div className="px-3 pt-3 pb-2 flex items-center justify-center gap-1">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -240,18 +241,69 @@ export default function Index() {
                   </TooltipTrigger>
                   <TooltipContent>New note</TooltipContent>
                 </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
+                      onClick={() => {}}
+                    >
+                      <FolderPlus className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>New folder</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        'h-7 w-7 transition-colors',
+                        searchOpen
+                          ? 'text-neutral-900 dark:text-neutral-100 bg-neutral-200/60 dark:bg-neutral-700/60'
+                          : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100'
+                      )}
+                      onClick={() => {
+                        setSearchOpen((v) => {
+                          const next = !v;
+                          if (!next) setSearchQuery('');
+                          else setTimeout(() => searchInputRef.current?.focus(), 50);
+                          return next;
+                        });
+                      }}
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Search</TooltipContent>
+                </Tooltip>
               </div>
 
-              {/* Search */}
-              <div className="px-3 pb-3">
+              {/* Search bar — animated open/close */}
+              <div className={cn(
+                'overflow-hidden transition-all duration-200',
+                searchOpen ? 'max-h-12 opacity-100 pt-px pb-2 px-3' : 'max-h-0 opacity-0'
+              )}>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500" />
                   <Input
+                    ref={searchInputRef}
                     placeholder="Search notes..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-8 pl-8 text-xs bg-neutral-100 dark:bg-neutral-800 border-0 focus-visible:ring-1 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-600 dark:text-neutral-200 dark:placeholder:text-neutral-500"
+                    onKeyDown={(e) => { if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); } }}
+                    className="h-8 pl-8 pr-7 text-xs bg-neutral-100 dark:bg-neutral-800 border-0 focus-visible:ring-1 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-600 dark:text-neutral-200 dark:placeholder:text-neutral-500"
                   />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -340,7 +392,7 @@ export default function Index() {
               <div className="h-full flex flex-col bg-white dark:bg-neutral-950">
 
                 {/* Editor Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200/40 dark:border-neutral-700/40">
+                <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-200/40 dark:border-neutral-700/40">
                   <div className="flex-1 mr-4">
                     <input
                       type="text"
