@@ -1,7 +1,7 @@
 const FONT_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif';
 
 import { useEffect, useRef, useCallback, useMemo } from 'react';
-import { EditorState, Compartment } from '@codemirror/state';
+import { EditorState, EditorSelection, Compartment } from '@codemirror/state';
 import { EditorView, keymap, placeholder as cmPlaceholder, drawSelection, rectangularSelection } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
@@ -141,6 +141,51 @@ const wikiTitlesCompartment = new Compartment();
 const wikiNavigateCompartment = new Compartment();
 const wikiThemeCompartment = new Compartment();
 
+function toggleWrapCommand(prefix: string, suffix = prefix) {
+  return (view: EditorView) => {
+    const { state } = view;
+
+    const transaction = state.changeByRange((range) => {
+      const selectedText = state.doc.sliceString(range.from, range.to);
+      const textBefore = state.doc.sliceString(Math.max(0, range.from - prefix.length), range.from);
+      const textAfter = state.doc.sliceString(range.to, Math.min(state.doc.length, range.to + suffix.length));
+      const isWrapped = textBefore === prefix && textAfter === suffix;
+
+      if (isWrapped) {
+        return {
+          changes: [
+            { from: range.from - prefix.length, to: range.from, insert: '' },
+            { from: range.to, to: range.to + suffix.length, insert: '' },
+          ],
+          range: EditorSelection.range(range.from - prefix.length, range.to - prefix.length),
+        };
+      }
+
+      if (range.empty) {
+        return {
+          changes: { from: range.from, to: range.to, insert: `${prefix}${suffix}` },
+          range: EditorSelection.cursor(range.from + prefix.length),
+        };
+      }
+
+      return {
+        changes: { from: range.from, to: range.to, insert: `${prefix}${selectedText}${suffix}` },
+        range: EditorSelection.range(range.from + prefix.length, range.to + prefix.length),
+      };
+    });
+
+    view.dispatch(state.update(transaction, { scrollIntoView: true, userEvent: 'input' }));
+    return true;
+  };
+}
+
+const markdownShortcutKeymap = [
+  { key: 'Mod-b', run: toggleWrapCommand('**') },
+  { key: 'Mod-i', run: toggleWrapCommand('*') },
+  { key: 'Mod-Shift-s', run: toggleWrapCommand('~~') },
+  { key: 'Mod-e', run: toggleWrapCommand('`') },
+];
+
 // ─── Component ──────────────────────────────────────────────────────────────
 interface MarkdownEditorProps {
   content: string;
@@ -189,6 +234,7 @@ export function MarkdownEditor({ content, onChange, isDark = false, noteTitles =
     wikiThemeCompartment.of(dark ? wikiLinksDarkTheme : wikiLinksLightTheme),
     cmPlaceholder('Start writing in markdown...'),
     keymap.of([
+      ...markdownShortcutKeymap,
       ...defaultKeymap,
       ...historyKeymap,
       ...searchKeymap,
@@ -278,6 +324,20 @@ export function MarkdownEditor({ content, onChange, isDark = false, noteTitles =
     // Use titlesKey for stable comparison instead of noteTitles array ref
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [titlesKey]);
+
+  // Reconfigure wiki-link navigation callback when it changes
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    view.dispatch({
+      effects: [
+        wikiNavigateCompartment.reconfigure(
+          onNavigateFacet.of((...args: Parameters<NonNullable<typeof onNavigate>>) => onNavigateRef.current?.(...args))
+        ),
+      ],
+    });
+  }, [onNavigate]);
 
   return (
     <div

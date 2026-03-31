@@ -100,16 +100,16 @@ export function table(tableId: string) {
       //   getRows({ count: true, filters: [{ column: 'created_at', operator: '>=', value: '2024-01-01' }] })
       return callFunction(`table_${tableId}_get_rows`, options as Record<string, unknown>)
     },
-    async getRow(rowId: string) {
+    async getRow(rowId: string | number) {
       return callFunction(`table_${tableId}_get_row`, { row_id: rowId })
     },
     async insertRow(data: Record<string, unknown>) {
       return callFunction(`table_${tableId}_insert_row`, data)
     },
-    async updateRow(rowId: string, data: Record<string, unknown>) {
+    async updateRow(rowId: string | number, data: Record<string, unknown>) {
       return callFunction(`table_${tableId}_update_row`, { row_id: rowId, ...data })
     },
-    async deleteRow(rowId: string) {
+    async deleteRow(rowId: string | number) {
       return callFunction(`table_${tableId}_delete_row`, { row_id: rowId })
     },
     async generateRow(prompt: string) {
