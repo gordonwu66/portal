@@ -533,6 +533,7 @@ export default function Index() {
   }
 
   const handleClass = 'w-px bg-neutral-200/60 dark:bg-neutral-700/50 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors duration-100';
+  const activeNoteFolderPath = activeNote ? getFolderPath(notes, activeNote) : '';
 
   return (
     <TooltipProvider delayDuration={400}>
@@ -546,7 +547,7 @@ export default function Index() {
           <ResizablePanelGroup direction="horizontal" className="flex-1">
             <ResizablePanel defaultSize={24} minSize={10} maxSize={50} className="overflow-hidden">
               <div className="h-full flex flex-col overflow-hidden bg-neutral-50/80 dark:bg-neutral-900/70">
-                <div className="px-3 pt-3 pb-2 flex items-center justify-center gap-1">
+                <div className="px-3 pt-6 pb-2 flex items-center justify-center gap-1">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -713,34 +714,36 @@ export default function Index() {
             <ResizablePanel defaultSize={76} minSize={40}>
               {activeNote ? (
                 <div className="h-full flex flex-col bg-white dark:bg-neutral-950">
-                  <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-200/40 dark:border-neutral-700/40 gap-4">
-                    <div className="flex-1 min-w-0">
-                      <input
-                        type="text"
-                        value={activeNote.title}
-                        onChange={(event) => handleTitleChange(event.target.value)}
-                        placeholder="Untitled"
-                        className="w-full text-base font-semibold text-neutral-900 dark:text-neutral-100 bg-transparent outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600 tracking-tight"
-                      />
-                      <div className="mt-1 text-[10px] text-neutral-400 dark:text-neutral-500 truncate">
-                        {getFolderPath(notes, activeNote)}
-                      </div>
+                  <div className="px-5 pt-2 pb-3 border-b border-neutral-200/40 dark:border-neutral-700/40">
+                    <div className="text-[10px] text-neutral-400 dark:text-neutral-500 text-center truncate min-h-[14px]">
+                      {activeNoteFolderPath !== 'Root' ? activeNoteFolderPath : null}
                     </div>
-                    <span className="flex items-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500 shrink-0">
-                      {saving ? (
-                        <>
-                          <svg className="animate-spin h-3 w-3 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                          </svg>
-                          Saving...
-                        </>
-                      ) : unsaved ? (
-                        <span>Unsaved changes</span>
-                      ) : (
-                        <>Saved{lastSavedAt ? ` · ${relativeTime(lastSavedAt)}` : ''}</>
-                      )}
-                    </span>
+                    <div className="mt-1 flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <input
+                          type="text"
+                          value={activeNote.title}
+                          onChange={(event) => handleTitleChange(event.target.value)}
+                          placeholder="Untitled"
+                          className="w-full text-base font-semibold text-neutral-900 dark:text-neutral-100 bg-transparent outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600 tracking-tight"
+                        />
+                      </div>
+                      <span className="flex items-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500 shrink-0">
+                        {saving ? (
+                          <>
+                            <svg className="animate-spin h-3 w-3 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                            </svg>
+                            Saving...
+                          </>
+                        ) : unsaved ? (
+                          <span>Unsaved changes</span>
+                        ) : (
+                          <>Saved{lastSavedAt ? ` · ${relativeTime(lastSavedAt)}` : ''}</>
+                        )}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="flex-1 overflow-hidden">
