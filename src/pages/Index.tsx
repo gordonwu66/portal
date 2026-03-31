@@ -149,6 +149,8 @@ export default function Index() {
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
   const switchingNote = useRef(false);
   const pendingSaveRef = useRef<Note | null>(null);
+  const notesRef = useRef<Note[]>([]);
+  notesRef.current = notes;
   const { resolvedTheme } = useTheme();
 
   const relativeTime = (date: Date): string => {
@@ -190,9 +192,10 @@ export default function Index() {
   const folderCount = notes.filter((item) => isFolder(item)).length;
   const focusedItem = notes.find((item) => item.row_id === focusedItemId) ?? null;
 
-  const expandAncestors = useCallback((item: Note | null, sourceItems: Note[] = notes) => {
+  const expandAncestors = useCallback((item: Note | null, sourceItems?: Note[]) => {
     if (!item) return;
-    const ancestorIds = getAncestorFolderIds(sourceItems, item);
+    const items = sourceItems ?? notesRef.current;
+    const ancestorIds = getAncestorFolderIds(items, item);
     if (ancestorIds.length === 0) return;
 
     setExpandedFolders((prev) => {
@@ -200,7 +203,7 @@ export default function Index() {
       ancestorIds.forEach((id) => next.add(id));
       return next;
     });
-  }, [notes]);
+  }, []);
 
   const persistNote = useCallback(async (note: Note) => {
     const timestamp = new Date().toISOString();
@@ -281,7 +284,7 @@ export default function Index() {
     }
 
     setLoading(false);
-  }, [expandAncestors]);
+  }, []);
 
   useEffect(() => {
     void loadNotes();
