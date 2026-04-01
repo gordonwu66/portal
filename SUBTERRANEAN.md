@@ -7,7 +7,7 @@ React 19, Vite, TypeScript, Tailwind CSS v4, shadcn/ui, React Router, hosted on 
 
 ## Architecture
 - SPA with React Router; pages in `src/pages/`
-- `src/pages/Index.tsx` — Main editor page with folder tree sidebar, note search, move dialog, and editor/empty states
+- `src/pages/Index.tsx` — Main editor page with collapsible folder tree sidebar, note search, move dialog, and editor/empty states
 - `src/pages/NotFound.tsx` — 404 page
 - `src/components/MarkdownEditor.tsx` — CodeMirror 6 markdown editor component
 - `src/components/NotesTree.tsx` — Recursive sidebar tree for nested folders and notes with per-item actions
