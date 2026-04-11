@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { table } from '../lib/api';
 import { cn } from '../lib/utils';
 import { useTheme } from '../lib/theme';
@@ -53,6 +54,8 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import {
+  ChevronLeft,
+  ChevronRight,
   FilePlus,
   FolderPlus,
   Search,
@@ -69,6 +72,14 @@ import {
 
 const TABLE_ID = '6b4a7072cff447389c3deecabb969409';
 const ROOT_MOVE_TARGET = '__root__';
+const SIDEBAR_DEFAULT_SIZE = 20;
+const SIDEBAR_MIN_SIZE = 10;
+const SIDEBAR_MAX_SIZE = 50;
+const SIDEBAR_COLLAPSED_SIZE = 0;
+const RIGHT_PANEL_DEFAULT_SIZE = 24;
+const RIGHT_PANEL_MIN_SIZE = 10;
+const RIGHT_PANEL_MAX_SIZE = 50;
+const RIGHT_PANEL_COLLAPSED_SIZE = 0;
 
 type Note = NoteItem;
 
@@ -142,9 +153,17 @@ export default function Index() {
   const [moveItem, setMoveItem] = useState<Note | null>(null);
   const [moveTarget, setMoveTarget] = useState(ROOT_MOVE_TARGET);
   const [renamingFolder, setRenamingFolder] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isAnimatingSidebar, setIsAnimatingSidebar] = useState(false);
+  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(true);
+  const [isAnimatingRightPanel, setIsAnimatingRightPanel] = useState(false);
   const folderRenameRef = useRef('');
   const [, setTick] = useState(0);
 
+  const sidebarPanelRef = useRef<ImperativePanelHandle | null>(null);
+  const lastSidebarSizeRef = useRef(SIDEBAR_DEFAULT_SIZE);
+  const rightPanelRef = useRef<ImperativePanelHandle | null>(null);
+  const lastRightPanelSizeRef = useRef(RIGHT_PANEL_DEFAULT_SIZE);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
   const switchingNote = useRef(false);
@@ -284,7 +303,7 @@ export default function Index() {
     }
 
     setLoading(false);
-  }, []);
+  }, [expandAncestors]);
 
   useEffect(() => {
     void loadNotes();
@@ -299,6 +318,74 @@ export default function Index() {
     return () => {
       if (saveTimeout.current) clearTimeout(saveTimeout.current);
     };
+  }, []);
+
+  const handleSidebarResize = useCallback((size: number) => {
+    const collapsed = size <= SIDEBAR_MIN_SIZE / 2;
+    setIsSidebarCollapsed(collapsed);
+
+    if (!collapsed) {
+      lastSidebarSizeRef.current = size;
+    }
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    const panel = sidebarPanelRef.current;
+    if (!panel) return;
+
+    setIsAnimatingSidebar(true);
+    // Clear animation flag after CSS transition completes
+    setTimeout(() => setIsAnimatingSidebar(false), 320);
+
+    if (isSidebarCollapsed) {
+      const restoredSize = Math.min(
+        SIDEBAR_MAX_SIZE,
+        Math.max(SIDEBAR_MIN_SIZE, lastSidebarSizeRef.current || SIDEBAR_DEFAULT_SIZE)
+      );
+      panel.resize(restoredSize);
+      setIsSidebarCollapsed(false);
+      return;
+    }
+
+    const currentSize = panel.getSize();
+    if (currentSize > SIDEBAR_MIN_SIZE / 2) {
+      lastSidebarSizeRef.current = currentSize;
+    }
+    panel.resize(SIDEBAR_COLLAPSED_SIZE);
+    setIsSidebarCollapsed(true);
+  }, [isSidebarCollapsed]);
+
+  const toggleRightPanel = useCallback(() => {
+    const panel = rightPanelRef.current;
+    if (!panel) return;
+
+    setIsAnimatingRightPanel(true);
+    setTimeout(() => setIsAnimatingRightPanel(false), 320);
+
+    if (isRightPanelCollapsed) {
+      const restoredSize = Math.min(
+        RIGHT_PANEL_MAX_SIZE,
+        Math.max(RIGHT_PANEL_MIN_SIZE, lastRightPanelSizeRef.current || RIGHT_PANEL_DEFAULT_SIZE)
+      );
+      panel.resize(restoredSize);
+      setIsRightPanelCollapsed(false);
+      return;
+    }
+
+    const currentSize = panel.getSize();
+    if (currentSize > RIGHT_PANEL_MIN_SIZE / 2) {
+      lastRightPanelSizeRef.current = currentSize;
+    }
+    panel.resize(RIGHT_PANEL_COLLAPSED_SIZE);
+    setIsRightPanelCollapsed(true);
+  }, [isRightPanelCollapsed]);
+
+  const handleRightPanelResize = useCallback((size: number) => {
+    const collapsed = size <= RIGHT_PANEL_MIN_SIZE / 2;
+    setIsRightPanelCollapsed(collapsed);
+    if (!collapsed) {
+      lastRightPanelSizeRef.current = size;
+    }
   }, []);
 
   const handleSelectNote = useCallback(async (note: Note) => {
@@ -405,7 +492,7 @@ export default function Index() {
     const nextNotes = [...notes, duplicated];
     setNotes(nextNotes);
     expandAncestors(duplicated, nextNotes);
-  }, [expandAncestors, notes]);
+  }, [expandAncestors, flushPendingSave, notes]);
 
   const deleteItem = useCallback(async (item: Note) => {
     await flushPendingSave();
@@ -458,7 +545,7 @@ export default function Index() {
     } else if (focusedWasRemoved) {
       setFocusedItemId(activeNote?.row_id ?? survivors[0]?.row_id ?? null);
     }
-  }, [activeNote, expandAncestors, flushPendingSave, focusedItemId, notes]);
+  }, [activeNote, expandAncestors, flushPendingSave, focusedItemId, moveItem?.row_id, notes]);
 
   const openMoveDialog = useCallback((item: Note) => {
     setMoveItem(item);
@@ -532,7 +619,19 @@ export default function Index() {
     );
   }
 
-  const handleClass = 'w-px bg-neutral-200/60 dark:bg-neutral-700/50 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors duration-100';
+  const handleClass = cn(
+    'group relative transition-[width,background-color] duration-200',
+    isSidebarCollapsed
+      ? 'w-0 bg-transparent after:hidden pointer-events-none'
+      : 'w-px bg-neutral-200/60 dark:bg-neutral-700/50 hover:bg-neutral-300 dark:hover:bg-neutral-600 after:absolute after:inset-y-0 after:left-1/2 after:w-2 after:-translate-x-1/2'
+  );
+
+  const rightHandleClass = cn(
+    'group relative transition-[width,background-color] duration-200',
+    isRightPanelCollapsed
+      ? 'w-0 bg-transparent after:hidden pointer-events-none'
+      : 'w-px bg-neutral-200/60 dark:bg-neutral-700/50 hover:bg-neutral-300 dark:hover:bg-neutral-600 after:absolute after:inset-y-0 after:left-1/2 after:w-2 after:-translate-x-1/2'
+  );
   const activeNoteFolderPath = activeNote ? getFolderPath(notes, activeNote) : '';
 
   return (
@@ -545,15 +644,33 @@ export default function Index() {
       }}>
         <div className="h-screen flex flex-col bg-white dark:bg-neutral-950">
           <ResizablePanelGroup direction="horizontal" className="flex-1">
-            <ResizablePanel defaultSize={24} minSize={10} maxSize={50} className="overflow-hidden">
-              <div className="h-full flex flex-col overflow-hidden bg-neutral-50/80 dark:bg-neutral-900/70">
-                <div className="px-3 pt-6 pb-2 flex items-center justify-center gap-1">
+            <ResizablePanel
+              ref={sidebarPanelRef}
+              defaultSize={SIDEBAR_DEFAULT_SIZE}
+              minSize={SIDEBAR_COLLAPSED_SIZE}
+              maxSize={SIDEBAR_MAX_SIZE}
+              collapsible
+              collapsedSize={SIDEBAR_COLLAPSED_SIZE}
+              onResize={handleSidebarResize}
+              className={cn(
+                'overflow-hidden',
+                isAnimatingSidebar && 'transition-[flex-grow,width] duration-300 ease-in-out',
+                isSidebarCollapsed && 'min-w-0'
+              )}
+            >
+              <div
+                className={cn(
+                  'h-full flex flex-col overflow-hidden bg-neutral-50/80 dark:bg-neutral-900/70 transition-all duration-300 ease-in-out',
+                  isSidebarCollapsed ? 'opacity-0 translate-x-[-8px] pointer-events-none' : 'opacity-100 translate-x-0'
+                )}
+              >
+                <div className="px-3 pt-6 pb-2 pl-5 flex items-center justify-start gap-1 relative">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
+                        className="h-7 w-7 text-neutral-500 dark:text-neutral-400 hover:bg-transparent dark:hover:bg-transparent hover:text-neutral-900 dark:hover:text-neutral-100"
                         onClick={() => void createNote()}
                       >
                         <FilePlus className="h-4 w-4" />
@@ -566,7 +683,7 @@ export default function Index() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
+                        className="h-7 w-7 text-neutral-500 dark:text-neutral-400 hover:bg-transparent dark:hover:bg-transparent hover:text-neutral-900 dark:hover:text-neutral-100"
                         onClick={() => void createFolder()}
                       >
                         <FolderPlus className="h-4 w-4" />
@@ -583,7 +700,7 @@ export default function Index() {
                           'h-7 w-7 transition-colors',
                           searchOpen
                             ? 'text-neutral-900 dark:text-neutral-100 bg-neutral-200/60 dark:bg-neutral-700/60'
-                            : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100'
+                            : 'text-neutral-500 dark:text-neutral-400 hover:bg-transparent dark:hover:bg-transparent hover:text-neutral-900 dark:hover:text-neutral-100'
                         )}
                         onClick={() => {
                           setSearchOpen((value) => {
@@ -598,6 +715,20 @@ export default function Index() {
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Search</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-2 top-6 h-7 w-7 rounded-none bg-transparent text-neutral-500 hover:bg-transparent hover:text-neutral-900 dark:bg-transparent dark:text-neutral-400 dark:hover:bg-transparent dark:hover:text-neutral-100"
+                        onClick={toggleSidebar}
+                        aria-label="Collapse sidebar"
+                      >
+                        <ChevronLeft className="h-4 w-4 transition-transform duration-300" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Collapse sidebar</TooltipContent>
                   </Tooltip>
                 </div>
 
@@ -631,7 +762,7 @@ export default function Index() {
                   </div>
                 </div>
 
-                <ScrollArea className="flex-1 min-w-0">
+                <ScrollArea className="flex-1 min-h-0 min-w-0">
                   <div className="px-2 pb-2 overflow-hidden">
                     {notes.length === 0 ? (
                       <div className="px-3 py-8 text-center">
@@ -711,22 +842,59 @@ export default function Index() {
 
             <ResizableHandle className={handleClass} />
 
-            <ResizablePanel defaultSize={76} minSize={40}>
+            <ResizablePanel defaultSize={56} minSize={30} className="relative">
+              {/* Left sidebar expand button (shown when sidebar collapsed) */}
+              <div
+                className={cn(
+                  'absolute left-0 top-6 z-20 flex w-10 justify-center transition-all duration-300 ease-in-out',
+                  isSidebarCollapsed ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 pointer-events-none'
+                )}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-none bg-transparent text-neutral-500 hover:bg-transparent hover:text-neutral-900 dark:bg-transparent dark:text-neutral-400 dark:hover:bg-transparent dark:hover:text-neutral-100"
+                      onClick={toggleSidebar}
+                      aria-label="Expand sidebar"
+                    >
+                      <ChevronLeft className="h-4 w-4 rotate-180 transition-transform duration-300" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Expand sidebar</TooltipContent>
+                </Tooltip>
+              </div>
+
+              {/* Right panel expand button (shown when right panel collapsed) */}
+              <div
+                className={cn(
+                  'absolute right-0 top-6 z-20 flex w-10 justify-center transition-all duration-300 ease-in-out',
+                  isRightPanelCollapsed ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2 pointer-events-none'
+                )}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-none bg-transparent text-neutral-500 hover:bg-transparent hover:text-neutral-900 dark:bg-transparent dark:text-neutral-400 dark:hover:bg-transparent dark:hover:text-neutral-100"
+                      onClick={toggleRightPanel}
+                      aria-label="Expand right panel"
+                    >
+                      <ChevronRight className="h-4 w-4 rotate-180 transition-transform duration-300" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">Expand panel</TooltipContent>
+                </Tooltip>
+              </div>
+
               {activeNote ? (
-                <div className="h-full flex flex-col bg-white dark:bg-neutral-950">
-                  <div className="px-5 pt-2 pb-3 border-b border-neutral-200/40 dark:border-neutral-700/40">
-                    <div className="text-[10px] text-neutral-400 dark:text-neutral-500 text-center truncate min-h-[14px]">
-                      {activeNoteFolderPath !== 'Root' ? activeNoteFolderPath : null}
-                    </div>
-                    <div className="mt-1 flex items-center justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <input
-                          type="text"
-                          value={activeNote.title}
-                          onChange={(event) => handleTitleChange(event.target.value)}
-                          placeholder="Untitled"
-                          className="w-full text-base font-semibold text-neutral-900 dark:text-neutral-100 bg-transparent outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600 tracking-tight"
-                        />
+                <div className="h-full overflow-y-auto bg-white dark:bg-neutral-950 ml-6">
+                  <div className="px-5 pt-2 pb-3">
+                    <div className="flex items-center justify-between gap-4 min-h-[14px]">
+                      <div className="text-[10px] text-neutral-400 dark:text-neutral-500 truncate">
+                        {activeNoteFolderPath !== 'Root' ? activeNoteFolderPath : null}
                       </div>
                       <span className="flex items-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500 shrink-0">
                         {saving ? (
@@ -744,9 +912,18 @@ export default function Index() {
                         )}
                       </span>
                     </div>
+                    <div className="mt-1">
+                      <input
+                        type="text"
+                        value={activeNote.title}
+                        onChange={(event) => handleTitleChange(event.target.value)}
+                        placeholder="Untitled"
+                        className="w-full text-xl font-semibold text-neutral-900 dark:text-neutral-100 bg-transparent outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600 tracking-tight"
+                      />
+                    </div>
                   </div>
 
-                  <div className="flex-1 overflow-hidden">
+                  <div>
                     <MarkdownEditor
                       content={activeNote.content}
                       onChange={handleContentChange}
@@ -757,7 +934,7 @@ export default function Index() {
                   </div>
                 </div>
               ) : focusedItem && isFolder(focusedItem) ? (
-                <div className="h-full flex flex-col items-center justify-center bg-white dark:bg-neutral-950 px-8 text-center">
+                <div className="h-full flex flex-col items-center justify-center bg-white dark:bg-neutral-950 px-8 text-center ml-6">
                   <Folder className="h-12 w-12 text-neutral-200 dark:text-neutral-700 mb-3" />
                   {renamingFolder ? (
                     <Input
@@ -804,7 +981,7 @@ export default function Index() {
                   </div>
                 </div>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center bg-white dark:bg-neutral-950">
+                <div className="h-full flex flex-col items-center justify-center bg-white dark:bg-neutral-950 ml-6">
                   <FileText className="h-12 w-12 text-neutral-200 dark:text-neutral-700 mb-3" />
                   <p className="text-sm text-neutral-400 dark:text-neutral-500">No note selected</p>
                   <button
@@ -815,6 +992,51 @@ export default function Index() {
                   </button>
                 </div>
               )}
+            </ResizablePanel>
+
+            <ResizableHandle className={rightHandleClass} />
+
+            <ResizablePanel
+              ref={rightPanelRef}
+              defaultSize={RIGHT_PANEL_COLLAPSED_SIZE}
+              minSize={RIGHT_PANEL_COLLAPSED_SIZE}
+              maxSize={RIGHT_PANEL_MAX_SIZE}
+              collapsible
+              collapsedSize={RIGHT_PANEL_COLLAPSED_SIZE}
+              onResize={handleRightPanelResize}
+              className={cn(
+                'overflow-hidden',
+                isAnimatingRightPanel && 'transition-[flex-grow,width] duration-300 ease-in-out',
+                isRightPanelCollapsed && 'min-w-0'
+              )}
+            >
+              <div
+                className={cn(
+                  'h-full flex flex-col overflow-hidden bg-neutral-50/80 dark:bg-neutral-900/70 transition-all duration-300 ease-in-out',
+                  isRightPanelCollapsed ? 'opacity-0 translate-x-2 pointer-events-none' : 'opacity-100 translate-x-0'
+                )}
+              >
+                {/* Right panel header — collapse button only */}
+                <div className="px-3 pt-6 pb-2 flex items-center justify-start">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 rounded-none bg-transparent text-neutral-500 hover:bg-transparent hover:text-neutral-900 dark:bg-transparent dark:text-neutral-400 dark:hover:bg-transparent dark:hover:text-neutral-100"
+                        onClick={toggleRightPanel}
+                        aria-label="Collapse right panel"
+                      >
+                        <ChevronRight className="h-4 w-4 transition-transform duration-300" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">Collapse panel</TooltipContent>
+                  </Tooltip>
+                </div>
+
+                {/* Right panel body — placeholder */}
+                <div className="flex-1" />
+              </div>
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>

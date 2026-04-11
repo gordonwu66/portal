@@ -342,7 +342,7 @@ export function MarkdownEditor({ content, onChange, isDark = false, noteTitles =
   return (
     <div
       ref={containerRef}
-      className="h-full w-full overflow-auto [&_.cm-editor]:h-full [&_.cm-scroller]:min-h-full"
+      className="w-full [&_.cm-editor]:min-h-full [&_.cm-scroller]:min-h-full"
     />
   );
 }
